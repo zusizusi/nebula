@@ -43,7 +43,7 @@ HesaiDriverRosWrapper::HesaiDriverRosWrapper(const rclcpp::NodeOptions & options
 
   RCLCPP_INFO_STREAM(this->get_logger(), this->get_name() << ". Wrapper=" << wrapper_status_);
   rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
-  auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 10),
+  auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1),
                          qos_profile);
   pandar_scan_sub_ = create_subscription<pandar_msgs::msg::PandarScan>(
     "pandar_packets", qos,
@@ -54,11 +54,32 @@ HesaiDriverRosWrapper::HesaiDriverRosWrapper(const rclcpp::NodeOptions & options
     this->create_publisher<sensor_msgs::msg::PointCloud2>("aw_points", rclcpp::SensorDataQoS());
   aw_points_ex_pub_ =
     this->create_publisher<sensor_msgs::msg::PointCloud2>("aw_points_ex", rclcpp::SensorDataQoS());
+
+  // initialize debug tool
+  {
+    using autoware::universe_utils::DebugPublisher;
+    using autoware::universe_utils::StopWatch;
+
+    stop_watch_ptr_ = std::make_unique<StopWatch<std::chrono::milliseconds>>();
+    debug_publisher_ = std::make_unique<DebugPublisher>(this, "hesai_driver_ros_wrapper");
+    stop_watch_ptr_->tic("processing_time");
+  }
 }
 
 void HesaiDriverRosWrapper::ReceiveScanMsgCallback(
   const pandar_msgs::msg::PandarScan::SharedPtr scan_msg)
 {
+  if (debug_publisher_) {
+    
+    double now_stamp_seconds = rclcpp::Time(this->get_clock()->now()).seconds();
+    double cloud_stamp_seconds = rclcpp::Time(scan_msg->header.stamp).seconds();
+
+    debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+      "debug/start_latency_ms", 1000.f * (now_stamp_seconds - cloud_stamp_seconds));
+  }
+
+  stop_watch_ptr_->toc("processing_time", true);
+
   auto t_start = std::chrono::high_resolution_clock::now();
   std::tuple<nebula::drivers::NebulaPointCloudPtr, double> pointcloud_ts =
     driver_ptr_->ConvertScanToPointcloud(scan_msg);
@@ -68,6 +89,20 @@ void HesaiDriverRosWrapper::ReceiveScanMsgCallback(
     RCLCPP_WARN_STREAM(get_logger(), "Empty cloud parsed.");
     return;
   };
+
+  if (debug_publisher_) {
+    
+    const double processing_time_ms = stop_watch_ptr_->toc("processing_time", true);
+    debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+      "debug/processing_time_ms", processing_time_ms);
+
+    double now_stamp_seconds = rclcpp::Time(this->get_clock()->now()).seconds();
+    double cloud_stamp_seconds = rclcpp::Time(SecondsToChronoNanoSeconds(std::get<1>(pointcloud_ts)).count()).seconds();
+
+    debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+      "debug/end_latency_ms", 1000.f * (now_stamp_seconds - cloud_stamp_seconds));
+  }
+
   if (
     nebula_points_pub_->get_subscription_count() > 0 ||
     nebula_points_pub_->get_intra_process_subscription_count() > 0) {

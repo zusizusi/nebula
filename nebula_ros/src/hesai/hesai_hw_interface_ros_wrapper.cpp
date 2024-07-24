@@ -142,6 +142,16 @@ HesaiHwInterfaceRosWrapper::HesaiHwInterfaceRosWrapper(const rclcpp::NodeOptions
   }
 #endif
 
+  // initialize debug tool
+  {
+    using autoware::universe_utils::DebugPublisher;
+    using autoware::universe_utils::StopWatch;
+
+    stop_watch_ptr_ = std::make_unique<StopWatch<std::chrono::milliseconds>>();
+    debug_publisher_ = std::make_unique<DebugPublisher>(this, "hesai_hw_interface_ros_wrapper");
+    stop_watch_ptr_->tic("processing_time");
+  }
+
   RCLCPP_DEBUG(this->get_logger(), "Starting stream");
   StreamStart();
 }
@@ -421,10 +431,27 @@ Status HesaiHwInterfaceRosWrapper::GetParameters(
 void HesaiHwInterfaceRosWrapper::ReceiveScanDataCallback(
   std::unique_ptr<pandar_msgs::msg::PandarScan> scan_buffer)
 {
+  double cloud_stamp_seconds = rclcpp::Time(scan_buffer->header.stamp).seconds();
+
+  if (debug_publisher_) {
+    double now_stamp_seconds = rclcpp::Time(this->get_clock()->now()).seconds();
+    
+    debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+      "debug/start_latency_ms", 1000.f * (now_stamp_seconds - cloud_stamp_seconds));
+  }
+
   // Publish
   scan_buffer->header.frame_id = sensor_configuration_.frame_id;
   scan_buffer->header.stamp = scan_buffer->packets.front().stamp;
   pandar_scan_pub_->publish(std::move(scan_buffer));
+
+  if (debug_publisher_) {
+    
+    double now_stamp_seconds = rclcpp::Time(this->get_clock()->now()).seconds();
+    
+    debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+      "debug/end_latency_ms", 1000.f * (now_stamp_seconds - cloud_stamp_seconds));
+  }
 }
 
 rcl_interfaces::msg::SetParametersResult HesaiHwInterfaceRosWrapper::paramCallback(

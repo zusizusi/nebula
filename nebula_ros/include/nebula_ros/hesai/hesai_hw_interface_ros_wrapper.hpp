@@ -1,6 +1,8 @@
 #ifndef NEBULA_HesaiHwInterfaceRosWrapper_H
 #define NEBULA_HesaiHwInterfaceRosWrapper_H
 
+#include <autoware/universe_utils/ros/debug_publisher.hpp>
+#include <autoware/universe_utils/system/stop_watch.hpp>
 #include "nebula_common/hesai/hesai_common.hpp"
 #include "nebula_common/nebula_common.hpp"
 #include "nebula_hw_interfaces/nebula_hw_interfaces_hesai/hesai_hw_interface.hpp"
@@ -92,6 +94,9 @@ private:
   /// @brief Updating rclcpp parameter
   /// @return SetParametersResult
   std::vector<rcl_interfaces::msg::SetParametersResult> updateParameters();
+
+  std::unique_ptr<autoware::universe_utils::StopWatch<std::chrono::milliseconds>> stop_watch_ptr_;
+  std::unique_ptr<autoware::universe_utils::DebugPublisher> debug_publisher_;
 };
 
 }  // namespace ros
