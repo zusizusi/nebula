@@ -76,6 +76,8 @@ void HesaiDriverRosWrapper::ReceiveScanMsgCallback(
 
     debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
       "debug/start_latency_ms", 1000.f * (now_stamp_seconds - cloud_stamp_seconds));
+    debug_publisher_->publish<tier4_debug_msgs::msg::Int64Stamped>(
+      "debug/packet_count", scan_msg->packets.size());
   }
 
   stop_watch_ptr_->toc("processing_time", true);
@@ -97,10 +99,13 @@ void HesaiDriverRosWrapper::ReceiveScanMsgCallback(
       "debug/processing_time_ms", processing_time_ms);
 
     double now_stamp_seconds = rclcpp::Time(this->get_clock()->now()).seconds();
-    double cloud_stamp_seconds = rclcpp::Time(SecondsToChronoNanoSeconds(std::get<1>(pointcloud_ts)).count()).seconds();
+    double cloud_stamp_seconds = rclcpp::Time(scan_msg->header.stamp).seconds();
+    double sensor_stamp_seconds = SecondsToChronoNanoSeconds(std::get<1>(pointcloud_ts)).count() / 1.e9;
 
     debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
       "debug/end_latency_ms", 1000.f * (now_stamp_seconds - cloud_stamp_seconds));
+        debug_publisher_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+      "debug/diff_sensor_system_ms", 1000.f * (cloud_stamp_seconds - sensor_stamp_seconds));
   }
 
   if (
