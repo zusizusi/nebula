@@ -68,12 +68,7 @@
         },
         "return_mode": {
           "$ref": "sub/misc.json#/definitions/return_mode",
-          "enum": [
-            "Last",
-            "First",
-            "LastFirst",
-            "Dual"
-          ]
+          "enum": ["Last", "First", "LastFirst", "Dual"]
         },
         "ptp_profile": {
           "$ref": "sub/communication.json#/definitions/ptp_profile"
@@ -133,13 +128,9 @@
         },
         "additionalProperties": false
       },
-      "required": [
-        "ros__parameters"
-      ]
+      "required": ["ros__parameters"]
     }
   },
-  "required": [
-    "/**"
-  ],
+  "required": ["/**"],
   "additionalProperties": false
 }
